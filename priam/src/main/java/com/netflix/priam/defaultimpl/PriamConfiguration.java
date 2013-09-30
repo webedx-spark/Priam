@@ -108,6 +108,7 @@ public class PriamConfiguration implements IConfiguration
     private static final String CONFIG_COMMITLOG_RESTORE_CMD = PRIAM_PRE + ".clbackup.restoreCmd";
     private static final String CONFIG_COMMITLOG_RESTORE_DIRS = PRIAM_PRE + ".clbackup.restoreDirs";
     private static final String CONFIG_COMMITLOG_RESTORE_POINT_IN_TIME = PRIAM_PRE + ".clbackup.restoreTime";
+    private static final String CONFIG_COMMITLOG_RESTORE_MAX = PRIAM_PRE + ".clrestore.max";
     private static final String CONFIG_CLIENT_SSL_ENABLED = PRIAM_PRE + ".client.sslEnabled";
     private static final String CONFIG_INTERNODE_ENCRYPTION = PRIAM_PRE + ".internodeEncryption";
     private static final String CONFIG_DSNITCH_ENABLED = PRIAM_PRE + ".dsnitchEnabled";
@@ -660,19 +661,19 @@ public class PriamConfiguration implements IConfiguration
     @Override
     public String getCommitLogBackupArchiveCmd()
     {
-        return config.get(CONFIG_COMMITLOG_ARCHIVE_CMD, "");
+        return config.get(CONFIG_COMMITLOG_ARCHIVE_CMD, "/bin/ln %path /mnt/data/backup/%name");
     }
 
     @Override
     public String getCommitLogBackupRestoreCmd()
     {
-        return config.get(CONFIG_COMMITLOG_RESTORE_CMD, "");
+        return config.get(CONFIG_COMMITLOG_RESTORE_CMD, "/bin/mv %from %to");
     }
 
     @Override
     public String getCommitLogBackupRestoreFromDirs()
     {
-        return config.get(CONFIG_COMMITLOG_RESTORE_DIRS, "");
+        return config.get(CONFIG_COMMITLOG_RESTORE_DIRS, "/mnt/data/backup/commitlog/");
     }
 
     @Override
@@ -681,6 +682,12 @@ public class PriamConfiguration implements IConfiguration
         return config.get(CONFIG_COMMITLOG_RESTORE_POINT_IN_TIME, "");
     }
 
+    @Override
+    public int maxCommitLogsRestore()
+    {
+    	return config.get(CONFIG_COMMITLOG_RESTORE_MAX, 10);
+    }
+    
     @Override
     public boolean isVpcRing() {
         return config.get(CONFIG_VPC_RING, false);

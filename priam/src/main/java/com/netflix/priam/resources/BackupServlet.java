@@ -138,6 +138,9 @@ public class BackupServlet
             config.setRestorePrefix(restorePrefix);
         }
         
+        logger.info("Parameters: { token: [" + token + "], region: [" +  region + "], startTime: [" + startTime + "], endTime: [" + endTime + 
+                    "], keyspaces: [" + keyspaces + "], restorePrefix: [" + restorePrefix + "]}");
+        
         restore(token, region, startTime, endTime, keyspaces);
         
         //Since this call is probably never called in parallel, config is multi-thread safe to be edited
@@ -176,6 +179,9 @@ public class BackupServlet
             startTime = path.parseDate(restore[0]);
             endTime = path.parseDate(restore[1]);
         }
+        
+        logger.info("Parameters: {backupPrefix: [" + config.getBackupPrefix() + "], daterange: [" + daterange + "], filter: [" + filter + "]}");
+        
         Iterator<AbstractBackupPath> it = bkpStatusFs.list(config.getBackupPrefix(), startTime, endTime);
         JSONObject object = new JSONObject();
         object = constructJsonResponse(object,it,filter);
