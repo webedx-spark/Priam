@@ -18,13 +18,13 @@ package com.netflix.priam;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.google.inject.ImplementedBy;
-import com.netflix.priam.defaultimpl.ClearCredential;
+import com.netflix.priam.aws.IAMCredential;
 
 /**
  * Credential file interface for services supporting 
  * Access ID and key authentication
  */
-@ImplementedBy(ClearCredential.class)
+@ImplementedBy(IAMCredential.class)
 public interface ICredential
 {
     /**

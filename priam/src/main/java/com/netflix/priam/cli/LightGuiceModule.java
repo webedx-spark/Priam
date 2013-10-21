@@ -18,6 +18,7 @@ package com.netflix.priam.cli;
 import com.google.inject.AbstractModule;
 import com.netflix.priam.IConfiguration;
 import com.netflix.priam.ICredential;
+import com.netflix.priam.aws.IAMCredential;
 import com.netflix.priam.aws.S3BackupPath;
 import com.netflix.priam.aws.S3FileSystem;
 import com.netflix.priam.aws.SDBInstanceFactory;
@@ -25,7 +26,6 @@ import com.netflix.priam.backup.AbstractBackupPath;
 import com.netflix.priam.backup.IBackupFileSystem;
 import com.netflix.priam.compress.ICompression;
 import com.netflix.priam.compress.SnappyCompression;
-import com.netflix.priam.defaultimpl.ClearCredential;
 import com.netflix.priam.defaultimpl.PriamConfiguration;
 import com.netflix.priam.identity.IMembership;
 import com.netflix.priam.identity.IPriamInstanceFactory;
@@ -40,7 +40,7 @@ class LightGuiceModule extends AbstractModule
     protected void configure()
     {
         bind(IConfiguration.class).to(PriamConfiguration.class).asEagerSingleton();
-        bind(ICredential.class).to(ClearCredential.class);
+        bind(ICredential.class).to(IAMCredential.class);
         bind(IPriamInstanceFactory.class).to(SDBInstanceFactory.class);
         bind(IMembership.class).to(StaticMembership.class);
         bind(IBackupFileSystem.class).to(S3FileSystem.class);

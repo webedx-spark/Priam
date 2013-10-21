@@ -50,15 +50,15 @@ public class CassandraMonitor extends Task{
         try
         {
         		//This returns pid for the Cassandra process
-        		Process p = Runtime.getRuntime().exec("pgrep -f " + config.getCassProcessName());
+        		Process p = Runtime.getRuntime().exec("sudo service " + config.getCassProcessName() + " status");
         		BufferedReader input = new BufferedReader(new InputStreamReader(p.getInputStream()));
             String line = input.readLine();
-        		if (line != null&& !isCassadraStarted())
+        		if (line.contains("running") && !isCassadraStarted())
         		{
         			//Setting cassandra flag to true
         			isCassandraStarted.set(true);
         		}
-        		else if(line  == null&& isCassadraStarted())
+        		else if(!line.contains("running") && isCassadraStarted())
         		{
         			//Setting cassandra flag to false
         			isCassandraStarted.set(false);
