@@ -115,6 +115,14 @@ public class PriamConfiguration implements IConfiguration
     private static final String CONFIG_INTERNODE_ENCRYPTION = PRIAM_PRE + ".internodeEncryption";
     private static final String CONFIG_DSNITCH_ENABLED = PRIAM_PRE + ".dsnitchEnabled";
 
+    private static final String CONFIG_CONCURRENT_READS = PRIAM_PRE + ".concurrentReads";
+    private static final String CONFIG_CONCURRENT_WRITES = PRIAM_PRE + ".concurrentWrites";
+    private static final String CONFIG_CONCURRENT_COMPACTORS = PRIAM_PRE + ".concurrentCompactors";
+    
+    private static final String CONFIG_RPC_SERVER_TYPE = PRIAM_PRE + ".rpc.server.type";
+    private static final String CONFIG_INDEX_INTERVAL = PRIAM_PRE + ".index.interval";
+    private static final String CONFIG_EXTRA_PARAMS = PRIAM_PRE + ".extra.params";
+
     private static final String CONFIG_US_EAST_1_S3_ENDPOINT = PRIAM_PRE + ".useast1.s3url";
     private static final String CONFIG_US_WEST_1_S3_ENDPOINT = PRIAM_PRE + ".uswest1.s3url";
     private static final String CONFIG_US_WEST_2_S3_ENDPOINT = PRIAM_PRE + ".uswest2.s3url";
@@ -132,8 +140,8 @@ public class PriamConfiguration implements IConfiguration
     private static final String CONFIG_REGION_NAME = PRIAM_PRE + ".az.region";
     private static final String CONFIG_ACL_GROUP_NAME = PRIAM_PRE + ".acl.groupname";
     private final String RAC = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/placement/availability-zone");
-    private final String PUBLIC_HOSTNAME = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/public-hostname").trim();
-    private final String PUBLIC_IP = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/public-ipv4").trim();
+    private final String PUBLIC_HOSTNAME;
+    private final String PUBLIC_IP;
     private final String LOCAL_HOSTNAME = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/local-hostname").trim();
     private final String LOCAL_IP = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/local-ipv4").trim();
     private final String INSTANCE_ID = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/instance-id").trim();
@@ -181,7 +189,11 @@ public class PriamConfiguration implements IConfiguration
     private final int DEFAULT_HINTS_MAX_THREADS = 2; //default value from 1.2 yaml
     private final int DEFAULT_HINTS_THROTTLE_KB = 1024; //default value from 1.2 yaml
     private final String DEFAULT_INTERNODE_COMPRESSION = "all";  //default value from 1.2 yaml
-
+    
+    private static final String DEFAULT_RPC_SERVER_TYPE = "hsha";
+    private static final int DEFAULT_INDEX_INTERVAL = 256;
+    
+    
     //default S3 endpoints
     private static final String DEFAULT_US_EAST_1_S3_ENDPOINT = "s3-external-1.amazonaws.com";
     private static final String DEFAULT_US_WEST_1_S3_ENDPOINT = "s3-us-west-1.amazonaws.com";
@@ -198,6 +210,23 @@ public class PriamConfiguration implements IConfiguration
     @Inject
     public PriamConfiguration(ICredential provider, IConfigSource config)
     {
+        // public interface meta-data does not exist when Priam runs in AWS VPC (priam.vpc=true)
+        String p_hostname="";
+        String p_ip="";
+        try {
+            p_hostname = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/public-hostname").trim();
+        }
+        catch (RuntimeException ex) {
+            // swallow
+        }
+        try {
+            p_ip = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/public-ipv4").trim();
+        }
+        catch (RuntimeException ex) {
+            // swallow
+        }
+        this.PUBLIC_HOSTNAME = p_hostname;
+        this.PUBLIC_IP = p_ip;
         this.provider = provider;
         this.config = config;
     }
@@ -256,7 +285,7 @@ public class PriamConfiguration implements IConfiguration
             super(NUMBER_OF_RETRIES, WAIT_TIME);
             this.region = region;
             this.instanceId = instanceId;
-            client = new AmazonEC2Client(provider.getCredentials());
+            client = new AmazonEC2Client(provider.getAwsCredentialProvider());
             client.setEndpoint("ec2." + region + ".amazonaws.com");
         }
         
@@ -286,7 +315,7 @@ public class PriamConfiguration implements IConfiguration
      * Get the fist 3 available zones in the region
      */
     public void setDefaultRACList(String region){
-        AmazonEC2 client = new AmazonEC2Client(provider.getCredentials());
+        AmazonEC2 client = new AmazonEC2Client(provider.getAwsCredentialProvider());
         client.setEndpoint("ec2." + region + ".amazonaws.com");
         DescribeAvailabilityZonesResult res = client.describeAvailabilityZones();
         List<String> zone = Lists.newArrayList();
@@ -825,5 +854,36 @@ public class PriamConfiguration implements IConfiguration
     	
     	return null;
     }
+
+    public int getConcurrentReadsCnt()
+    {
+        return config.get(CONFIG_CONCURRENT_READS, 32);
+    }
+
+    public int getConcurrentWritesCnt()
+    {
+        return config.get(CONFIG_CONCURRENT_WRITES, 32);
+    }
+
+    public int getConcurrentCompactorsCnt()
+    {
+        int cpus = Runtime.getRuntime().availableProcessors();
+        return config.get(CONFIG_CONCURRENT_COMPACTORS, cpus);
+    }
+
+    public String getRpcServerType() {
+    	return config.get(CONFIG_RPC_SERVER_TYPE, DEFAULT_RPC_SERVER_TYPE);
+    }
     
+    public int getIndexInterval() {
+    	return config.get(CONFIG_INDEX_INTERVAL, DEFAULT_INDEX_INTERVAL);
+    }
+    
+    public String getExtraConfigParams() {
+    	return config.get(CONFIG_EXTRA_PARAMS);
+    }
+    
+    public String getCassYamlVal(String priamKey) {
+    	return config.get(priamKey);
+    }
 }

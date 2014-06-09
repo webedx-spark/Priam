@@ -69,6 +69,13 @@ public class StandardTuner implements CassandraTuner
         map.put("internode_compression", config.getInternodeCompression());
         map.put("dynamic_snitch", config.isDynamicSnitchEnabled());
 
+        map.put("concurrent_reads", config.getConcurrentReadsCnt());
+        map.put("concurrent_writes", config.getConcurrentWritesCnt());
+        map.put("concurrent_compactors", config.getConcurrentCompactorsCnt());
+        
+        map.put("rpc_server_type", config.getRpcServerType());
+        map.put("index_interval", config.getIndexInterval());
+        
         List<?> seedp = (List) map.get("seed_provider");
         Map<String, String> m = (Map<String, String>) seedp.get(0);
         m.put("class_name", seedProvider);
@@ -77,6 +84,9 @@ public class StandardTuner implements CassandraTuner
         configureGlobalCaches(config, map);
         //force to 1 until vnodes are properly supported
 	    map.put("num_tokens", 1);
+	    
+	    
+	    addExtraCassParams(map);
 
         logger.info(yaml.dump(map));
         yaml.dump(map, new FileWriter(yamlFile));
@@ -177,5 +187,26 @@ public class StandardTuner implements CassandraTuner
         map.put("auto_bootstrap", autobootstrap);
         logger.info("Updating yaml" + yaml.dump(map));
         yaml.dump(map, new FileWriter(yamlFile));
+    }
+    
+    public void addExtraCassParams(Map map) 
+    {
+    	String params = config.getExtraConfigParams();
+    	if (params == null) {
+    		logger.info("Updating yaml: no extra cass params");
+    		return;
+    	}
+    	
+    	String[] pairs = params.split(",");
+    	logger.info("Updating yaml: adding extra cass params");
+    	for(int i=0; i<pairs.length; i++) 
+    	{
+    		String[] pair = pairs[i].split("=");
+    		String priamKey = pair[0];
+    		String cassKey = pair[1];
+    		String cassVal = config.getCassYamlVal(priamKey);
+    		logger.info("Updating yaml: Priamkey[" + priamKey + "], CassKey[" + cassKey + "], Val[" + cassVal + "]");
+    		map.put(cassKey, cassVal);
+    	}
     }
 }

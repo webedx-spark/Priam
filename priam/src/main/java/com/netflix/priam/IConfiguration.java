@@ -406,6 +406,16 @@ public interface IConfiguration
     public boolean isThriftEnabled();
 
     public boolean isNativeTransportEnabled();
-    public String getS3EndPoint(); 
+    public String getS3EndPoint();
+
+    public int getConcurrentReadsCnt();
+    public int getConcurrentWritesCnt();
+    public int getConcurrentCompactorsCnt();
     
+    public String getRpcServerType();
+    public int getIndexInterval();
+    
+    public String getExtraConfigParams();
+    
+    public String getCassYamlVal(String priamKey);
 }

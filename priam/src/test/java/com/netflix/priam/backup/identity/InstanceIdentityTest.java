@@ -1,9 +1,11 @@
 package com.netflix.priam.backup.identity;
 
 import com.netflix.priam.identity.DoubleRing;
+import com.netflix.priam.identity.InstanceIdentity;
 import com.netflix.priam.identity.PriamInstance;
 import com.netflix.priam.utils.ITokenManager;
 import com.netflix.priam.utils.TokenManager;
+
 import org.junit.Test;
 
 import java.util.List;
@@ -48,17 +50,7 @@ public class InstanceIdentityTest extends InstanceTestUtils
         identity = createInstanceIdentity("az3", "fakeinstance9");
         assertEquals(8, identity.getInstance().getId() - hash);
     }
-
-    @Test
-    public void testDeadInstance() throws Exception
-    {
-        createInstances();
-        instances.remove("fakeinstance4");
-        identity = createInstanceIdentity("az2", "fakeinstancex");
-        int hash = tokenManager.regionOffset(config.getDC());
-        assertEquals(1, identity.getInstance().getId() - hash);
-    }
-
+    
     @Test
     public void testGetSeeds() throws Exception
     {
@@ -81,7 +73,7 @@ public class InstanceIdentityTest extends InstanceTestUtils
             System.out.println(lst.get(i));
             if (0 == i % 2)
                 continue;
-            assertEquals("new_slot", lst.get(i).getInstanceId());
+            assertEquals(InstanceIdentity.DUMMY_INSTANCE_ID, lst.get(i).getInstanceId());
         }
         assertEquals(before * 2, lst.size());
     }

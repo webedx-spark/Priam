@@ -530,4 +530,37 @@ public class FakeConfiguration implements IConfiguration
     public String getS3EndPoint() {
 	return "s3-external-1.amazonaws.com";
     }
+
+    public int getConcurrentReadsCnt()
+    {
+        return 8;
+    }
+
+    public int getConcurrentWritesCnt()
+    {
+        return 8;
+    }
+
+    public int getConcurrentCompactorsCnt()
+    {
+        return 1;
+    }
+
+	@Override
+	public String getRpcServerType() {
+		return "hsha";
+	}
+
+	@Override
+	public int getIndexInterval() {
+		return 0;
+	}
+	
+	public String getExtraConfigParams() {
+		return null;
+	}
+	
+    public String getCassYamlVal(String priamKey) {
+    	return "";
+    }
 }
