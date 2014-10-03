@@ -444,7 +444,7 @@ public class FakeConfiguration implements IConfiguration
     @Override
     public String getRackDcPropertiesLocation()
     {
-        return "/tmp/priam/conf/cassandra-rackdc.properties";
+        return "/tmp/cassandra-rackdc.properties";
     }
 
     public String getAuthenticator()
