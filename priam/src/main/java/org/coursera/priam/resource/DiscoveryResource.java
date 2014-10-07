@@ -1,5 +1,7 @@
 package org.coursera.priam.resource;
 
+import org.codehaus.jettison.json.JSONException;
+import org.codehaus.jettison.json.JSONObject;
 import org.coursera.discovery.DiscoveryTask;
 
 import javax.inject.Inject;
@@ -37,5 +39,17 @@ public class DiscoveryResource
         discovery.deadvertise();
 
         return Response.ok().build();
+    }
+
+    @GET
+    @Path("/info")
+    public Response info() throws JSONException
+    {
+        JSONObject json = new JSONObject();
+        json.put("nodePath", discovery.getZkNodePath());
+        json.put("isAdvertising", discovery.isAdvertising());
+        json.put("shouldAdvertise", discovery.shouldAdvertise());
+
+        return Response.ok(json).build();
     }
 }

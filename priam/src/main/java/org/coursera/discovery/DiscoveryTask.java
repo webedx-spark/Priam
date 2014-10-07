@@ -76,8 +76,17 @@ public class DiscoveryTask extends Task implements ConnectionStateListener
     @Override
     public void execute() throws Exception
     {
-        if (isCassandraRunning() && shouldAdvertise.get())
-            advertiseIfNeeded();
+        if (isCassandraRunning()) {
+            if (shouldAdvertise.get()) {
+                advertiseIfNeeded();
+            }
+        } else {
+            if (isAdvertising()) {
+                logger.warn("Cassandra not running but is advertising.");
+            }
+
+            deadvertiseIfNeeded();
+        }
     }
 
     @Override
@@ -96,6 +105,21 @@ public class DiscoveryTask extends Task implements ConnectionStateListener
     {
         shouldAdvertise.set(false);
         deadvertiseIfNeeded();
+    }
+
+    public boolean isAdvertising()
+    {
+        return isAdvertising.get();
+    }
+
+    public boolean shouldAdvertise()
+    {
+        return shouldAdvertise.get();
+    }
+
+    public String getZkNodePath()
+    {
+        return nodePath;
     }
 
     public static TaskTimer getTimer()
