@@ -16,6 +16,7 @@
 package com.netflix.priam;
 
 import org.apache.commons.collections.CollectionUtils;
+import org.coursera.discovery.DiscoveryTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -118,6 +119,10 @@ public class PriamServer
         
         //Set cleanup
         scheduler.addTask(UpdateCleanupPolicy.JOBNAME, UpdateCleanupPolicy.class, UpdateCleanupPolicy.getTimer());
+
+
+        // Discovery
+        scheduler.addTask(DiscoveryTask.JOBNAME, DiscoveryTask.class, DiscoveryTask.getTimer());
     }
 
     public InstanceIdentity getId()

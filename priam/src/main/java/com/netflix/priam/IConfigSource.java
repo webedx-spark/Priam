@@ -3,6 +3,7 @@ package com.netflix.priam;
 import com.google.inject.ImplementedBy;
 import com.netflix.priam.defaultimpl.PriamConfigSource;
 
+import javax.inject.Singleton;
 import java.util.List;
 
 /**

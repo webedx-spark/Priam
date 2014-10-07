@@ -615,5 +615,4 @@ public class CassandraAdmin
         nodetool.drain();
         return Response.ok(REST_SUCCESS, MediaType.APPLICATION_JSON).build();
     }
-
 }
