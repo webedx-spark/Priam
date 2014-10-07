@@ -330,6 +330,11 @@ public class JMXNodeTool extends NodeProbe
         }
     }
 
+    public String getOperationalMode()
+    {
+        return super.getOperationMode();
+    }
+
     @Override
     public void close() throws IOException
     {

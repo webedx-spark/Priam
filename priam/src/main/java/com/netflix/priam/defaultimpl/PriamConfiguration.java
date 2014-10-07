@@ -915,4 +915,9 @@ public class PriamConfiguration implements IConfiguration
     public boolean getAutoBoostrap() {
         return config.get(CONFIG_AUTO_BOOTSTRAP, true);
     }
+
+    public String getZkServers()
+    {
+        return config.get("coursera.zk.servers", "");
+    }
 }

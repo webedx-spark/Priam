@@ -589,4 +589,10 @@ public class FakeConfiguration implements IConfiguration
         // TODO Auto-generated method stub
         return false;
     }
+
+    @Override
+    public String getZkServers()
+    {
+        return null;
+    }
 }

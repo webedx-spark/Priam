@@ -65,7 +65,7 @@ public class InjectedWebListener extends GuiceServletContextListener
         {
             Map<String, String> params = new HashMap<String, String>();
             params.put(PackagesResourceConfig.PROPERTY_PACKAGES, "unbound");
-            params.put("com.sun.jersey.config.property.packages", "com.netflix.priam.resources");
+            params.put("com.sun.jersey.config.property.packages", "com.netflix.priam.resources;org.coursera.priam.resource");
             params.put(ServletContainer.PROPERTY_FILTER_CONTEXT_PATH, "/REST");
             serve("/REST/*").with(GuiceContainer.class, params);
         }

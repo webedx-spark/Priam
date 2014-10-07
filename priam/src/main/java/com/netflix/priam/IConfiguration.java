@@ -435,5 +435,6 @@ public interface IConfiguration
     public String getCassYamlVal(String priamKey);
     
     public boolean getAutoBoostrap();
-    
+
+    public String getZkServers();
 }
