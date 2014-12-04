@@ -134,8 +134,7 @@ public class DiscoveryTask extends Task implements ConnectionStateListener
             logger.warn("Lost zookeeper connection");
             isAdvertising.set(false);
         } else if (newState.equals(ConnectionState.RECONNECTED)) {
-            logger.info("Required zookeeper connection, readvertising");
-            isAdvertising.set(true);
+            logger.info("Re-acquired zookeeper connection");
         }
     }
 
