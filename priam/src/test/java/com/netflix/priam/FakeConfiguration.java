@@ -3,6 +3,7 @@ package com.netflix.priam;
 import java.util.Arrays;
 import java.util.List;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.inject.Singleton;
 import com.netflix.priam.IConfiguration;
@@ -239,7 +240,7 @@ public class FakeConfiguration implements IConfiguration
         // TODO Auto-generated method stub
         return null;
     }
-    
+
     @Override
     public boolean isIncrBackup()
     {
@@ -313,7 +314,7 @@ public class FakeConfiguration implements IConfiguration
 
     @Override
     public long getBackupChunkSize()
-    {        
+    {
         return 5L*1024*1024;
     }
 
@@ -321,7 +322,7 @@ public class FakeConfiguration implements IConfiguration
     public void setDC(String region)
     {
         // TODO Auto-generated method stub
-        
+
     }
 
     @Override
@@ -360,7 +361,7 @@ public class FakeConfiguration implements IConfiguration
     {
         return Lists.newArrayList();
     }
-    
+
     public int getMaxHintWindowInMS()
     {
         return 36000;
@@ -513,11 +514,11 @@ public class FakeConfiguration implements IConfiguration
     }
 
     public void setRestoreKeySpaces(List<String> keyspaces) {
-            
+
     }
 
     @Override
-    public int maxCommitLogsRestore() {		
+    public int maxCommitLogsRestore() {
        return 0;
     }
 
@@ -545,7 +546,7 @@ public class FakeConfiguration implements IConfiguration
     {
         return false;
     }
-	
+
     @Override
     public String getS3EndPoint() {
 	return "s3-external-1.amazonaws.com";
@@ -575,11 +576,11 @@ public class FakeConfiguration implements IConfiguration
 	public int getIndexInterval() {
 		return 0;
 	}
-	
+
 	public String getExtraConfigParams() {
 		return null;
 	}
-	
+
     public String getCassYamlVal(String priamKey) {
     	return "";
     }
@@ -592,6 +593,12 @@ public class FakeConfiguration implements IConfiguration
 
     @Override
     public String getZkServers()
+    {
+        return null;
+    }
+
+    @Override
+    public ImmutableSet<String> getSolrDCs()
     {
         return null;
     }

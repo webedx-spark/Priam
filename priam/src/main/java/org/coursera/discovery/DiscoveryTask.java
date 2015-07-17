@@ -51,7 +51,7 @@ public class DiscoveryTask extends Task implements ConnectionStateListener
 
         serviceName = config.getAppName() + config.getDCSuffix();
 
-        if (config.getDCSuffix().startsWith("_solr")) {
+        if (config.getDCSuffix().startsWith("_solr") || config.getSolrDCs().contains(config.getDC())) {
             port = 8983;
         } else {
             port = 9142;

@@ -15,6 +15,7 @@
  */
 package com.netflix.priam;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.inject.ImplementedBy;
 import com.netflix.priam.defaultimpl.PriamConfiguration;
 
@@ -26,7 +27,7 @@ import java.util.List;
 @ImplementedBy(PriamConfiguration.class)
 public interface IConfiguration
 {
-	
+
     public void intialize();
 
     /**
@@ -53,24 +54,24 @@ public interface IConfiguration
 
     /**
      * Eg: 'my_backup' will result in all files stored under this dir/prefix
-     * 
+     *
      * @return Prefix that will be added to remote backup location
      */
     public String getBackupLocation();
-    
-    /** 
+
+    /**
      * @return Get Backup retention in days
      */
     public int getBackupRetentionDays();
 
-    /** 
+    /**
      * @return Get list of racs to backup. Backup all racs if empty
      */
     public List<String> getBackupRacs();
 
     /**
      * Bucket name in case of AWS
-     * 
+     *
      * @return Bucket name used for backups
      */
     public String getBackupPrefix();
@@ -80,7 +81,7 @@ public interface IConfiguration
      * to the clusters backup
      */
     public String getRestorePrefix();
-    
+
     /**
      * @param prefix
      *            Set the current restore prefix
@@ -127,12 +128,12 @@ public interface IConfiguration
      * @return Cassandra's JMX port
      */
     public int getJmxPort();
-        
+
     /**
      * Cassandra storage/cluster communication port
      */
     public int getStoragePort();
-    
+
     public int getSSLStoragePort();
 
     /**
@@ -193,7 +194,7 @@ public interface IConfiguration
     /**
      * Specifies the start and end time used for restoring data (yyyyMMddHHmm
      * format) Eg: 201201132030,201201142030
-     * 
+     *
      * @return Snapshot to be searched and restored
      */
     public String getRestoreSnapshot();
@@ -244,7 +245,7 @@ public interface IConfiguration
      * Amazon specific setting to query ASG Membership
      */
     public String getASGName();
-    
+
     /**
      * Get the security group associated with nodes in this cluster
      */
@@ -277,14 +278,14 @@ public interface IConfiguration
 
     /**
      * @return Compaction throughput
-     */    
+     */
     public int getCompactionThroughput();
 
     /**
      * @return compaction_throughput_mb_per_sec
      */
     public int getMaxHintWindowInMS();
-    
+
     /**
      * @return hinted_handoff_throttle_in_kb
      */
@@ -304,8 +305,8 @@ public interface IConfiguration
      * @return Bootstrap cluster name (depends on another cass cluster)
      */
     public String getBootClusterName();
-    
-    /** 
+
+    /**
      * @return Get the name of seed provider
      */
     public String getSeedProviderName();
@@ -314,12 +315,12 @@ public interface IConfiguration
      * @return Get Memtable throughput settings
      */
     public int getMemtableTotalSpaceMB();
-    
+
     /**
      * @return stream_throughput_outbound_megabits_per_sec in yaml
      */
     public int getStreamingThroughputMB();
-    
+
     /**
      * @return multithreaded_compaction in yaml
      */
@@ -374,7 +375,7 @@ public interface IConfiguration
      * @return New Keyspace Name on Target Cluster
      */
     public String getTargetKSName();
-    
+
     /**
      * This can be used during cluster migration.
      * When on Target Cluster, Column Family name is different
@@ -382,7 +383,7 @@ public interface IConfiguration
      * @return New Column Family Name on Target Cluster
      */
     public String getTargetCFName();
-    
+
     /**
      * @return true/false, if Cassandra needs to be started manually
      */
@@ -392,9 +393,9 @@ public interface IConfiguration
      * @return possible values: all, dc, none
      */
     public String getInternodeCompression();
-   
+
     public boolean isBackingUpCommitLogs();
-    
+
     public String getCommitLogBackupArchiveCmd();
 
     public String getCommitLogBackupRestoreCmd();
@@ -402,7 +403,7 @@ public interface IConfiguration
     public String getCommitLogBackupRestoreFromDirs();
 
     public String getCommitLogBackupRestorePointInTime();
-    
+
     public int maxCommitLogsRestore();
 
     /**
@@ -426,15 +427,17 @@ public interface IConfiguration
     public int getConcurrentReadsCnt();
     public int getConcurrentWritesCnt();
     public int getConcurrentCompactorsCnt();
-    
+
     public String getRpcServerType();
     public int getIndexInterval();
-    
+
     public String getExtraConfigParams();
-    
+
     public String getCassYamlVal(String priamKey);
-    
+
     public boolean getAutoBoostrap();
 
     public String getZkServers();
+
+    public ImmutableSet<String> getSolrDCs();
 }
