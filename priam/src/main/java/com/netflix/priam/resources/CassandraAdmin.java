@@ -202,7 +202,7 @@ public class CassandraAdmin
 
     @GET
     @Path("/repair")
-    public Response cassRepair(@QueryParam("sequential") boolean isSequential, @QueryParam("localDC") boolean localDCOnly, @DefaultValue("false") @QueryParam("primaryRange") boolean primaryRange) throws IOException, ExecutionException, InterruptedException
+    public Response cassRepair(@QueryParam("sequential") boolean isSequential, @QueryParam("localDC") boolean localDCOnly, @DefaultValue("false") @QueryParam("primaryRange") boolean primaryRange, @DefaultValue("false") @QueryParam("incremental") boolean incremental) throws IOException, ExecutionException, InterruptedException
     {
         JMXNodeTool nodetool = null;
 		try {
@@ -212,7 +212,7 @@ public class CassandraAdmin
 					.build();
 		}
         logger.debug("node tool repair being called");
-        nodetool.repair(isSequential, localDCOnly, primaryRange);
+        nodetool.repair(isSequential, localDCOnly, primaryRange, incremental);
         return Response.ok(REST_SUCCESS, MediaType.APPLICATION_JSON).build();
     }
 
@@ -529,7 +529,7 @@ public class CassandraAdmin
 
     @GET
     @Path("/scrub")
-    public Response scrub(@QueryParam(REST_HEADER_KEYSPACES) String keyspaces, @QueryParam(REST_HEADER_CFS) String cfnames, @QueryParam("noSnapshot") @DefaultValue("false") Boolean noSnapshot, @QueryParam("skipCorrupted") @DefaultValue("false") Boolean skipCorrupted) throws IOException, ExecutionException, InterruptedException,
+    public Response scrub(@QueryParam(REST_HEADER_KEYSPACES) String keyspaces, @QueryParam(REST_HEADER_CFS) String cfnames, @QueryParam("noSnapshot") @DefaultValue("false") Boolean noSnapshot, @QueryParam("checkData") @DefaultValue("true") Boolean checkData, @QueryParam("skipCorrupted") @DefaultValue("false") Boolean skipCorrupted) throws IOException, ExecutionException, InterruptedException,
             ConfigurationException
     {
         JMXNodeTool nodetool = null;
@@ -543,9 +543,9 @@ public class CassandraAdmin
         if (StringUtils.isNotBlank(cfnames))
             cfs = cfnames.split(",");
         if (cfs == null)
-            nodetool.scrub(noSnapshot, skipCorrupted, keyspaces);
+            nodetool.scrub(noSnapshot, skipCorrupted, checkData, keyspaces);
         else
-            nodetool.scrub(noSnapshot, skipCorrupted, keyspaces, cfs);
+            nodetool.scrub(noSnapshot, skipCorrupted, checkData, keyspaces, cfs);
         return Response.ok(REST_SUCCESS, MediaType.APPLICATION_JSON).build();
     }
 

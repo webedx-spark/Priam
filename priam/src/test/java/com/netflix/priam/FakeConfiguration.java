@@ -6,7 +6,6 @@ import java.util.List;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.inject.Singleton;
-import com.netflix.priam.IConfiguration;
 import com.netflix.priam.defaultimpl.PriamConfiguration;
 
 @Singleton
@@ -268,11 +267,6 @@ public class FakeConfiguration implements IConfiguration
 	}
 
 	@Override
-	public int getInMemoryCompactionLimit() {
-		return 8;
-	}
-
-	@Override
 	public int getCompactionThroughput() {
 		// TODO Auto-generated method stub
 		return 0;
@@ -378,21 +372,9 @@ public class FakeConfiguration implements IConfiguration
     }
 
     @Override
-    public int getMemtableTotalSpaceMB()
-    {
-        return 0;
-    }
-
-    @Override
     public int getStreamingThroughputMB()
     {
         return 400;
-    }
-
-    @Override
-    public boolean getMultithreadedCompaction()
-    {
-        return false;
     }
 
     public String getPartitioner()
@@ -599,6 +581,30 @@ public class FakeConfiguration implements IConfiguration
 
     @Override
     public ImmutableSet<String> getSolrDCs()
+    {
+        return null;
+    }
+
+    @Override
+    public int getMemtableHeapSpaceMB()
+    {
+        return 0;
+    }
+
+    @Override
+    public int getMemtableOffHeapSpaceMB()
+    {
+        return 0;
+    }
+
+    @Override
+    public double getMemtableCleanupThreshold()
+    {
+        return 0;
+    }
+
+    @Override
+    public String getMemtableAllocationType()
     {
         return null;
     }

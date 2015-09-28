@@ -145,7 +145,7 @@ public class NodeStatusImpl implements NodeStatus
     @Override
     public void repair(boolean sequential, boolean localDataCenterOnly) throws Exception
     {
-        nodeTool.repair(sequential, localDataCenterOnly);
+        nodeTool.repair(sequential, localDataCenterOnly, false);
     }
 
     @Override

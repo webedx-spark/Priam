@@ -271,10 +271,13 @@ public interface IConfiguration
      */
     boolean isLocalBootstrapEnabled();
 
-    /**
-     * @return In memory compaction limit
-     */
-    public int getInMemoryCompactionLimit();
+    public int getMemtableHeapSpaceMB();
+
+    public int getMemtableOffHeapSpaceMB();
+
+    public double getMemtableCleanupThreshold();
+
+    public String getMemtableAllocationType();
 
     /**
      * @return Compaction throughput
@@ -312,19 +315,9 @@ public interface IConfiguration
     public String getSeedProviderName();
 
     /**
-     * @return Get Memtable throughput settings
-     */
-    public int getMemtableTotalSpaceMB();
-
-    /**
      * @return stream_throughput_outbound_megabits_per_sec in yaml
      */
     public int getStreamingThroughputMB();
-
-    /**
-     * @return multithreaded_compaction in yaml
-     */
-    public boolean getMultithreadedCompaction();
 
     /**
      * Get the paritioner for this cassandra cluster/node.

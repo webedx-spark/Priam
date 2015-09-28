@@ -291,17 +291,15 @@ public class JMXNodeTool extends NodeProbe
             forceKeyspaceCompaction(keyspace, new String[0]);
     }
 
-    public void repair(boolean isSequential, boolean localDataCenterOnly) throws IOException, ExecutionException, InterruptedException
+    public void repair(boolean isSequential, boolean localDataCenterOnly, boolean incremental) throws IOException, ExecutionException, InterruptedException
     {
-        repair(isSequential, localDataCenterOnly, false);
+        repair(isSequential, localDataCenterOnly, false, incremental);
     }
-    public void repair(boolean isSequential, boolean localDataCenterOnly, boolean primaryRange) throws IOException, ExecutionException, InterruptedException
+
+    public void repair(boolean isSequential, boolean localDataCenterOnly, boolean primaryRange, boolean incremental) throws IOException, ExecutionException, InterruptedException
     {
         for (String keyspace : getKeyspaces())
-            if (primaryRange)
-                forceKeyspaceRepairPrimaryRange(keyspace, isSequential, localDataCenterOnly, new String[0]);
-            else
-                forceKeyspaceRepair(keyspace, isSequential, localDataCenterOnly, new String[0]);
+            forceRepairAsync(System.out, keyspace, isSequential, null, null, primaryRange, !incremental);
     }
 
     public void cleanup() throws IOException, ExecutionException, InterruptedException

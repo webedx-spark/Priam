@@ -21,8 +21,6 @@ import com.netflix.priam.utils.CassandraTuner;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
-import static org.apache.cassandra.locator.SnitchProperties.RACKDC_PROPERTY_FILENAME;
-
 public class StandardTuner implements CassandraTuner
 {
     private static final Logger logger = LoggerFactory.getLogger(StandardTuner.class);
@@ -57,20 +55,21 @@ public class StandardTuner implements CassandraTuner
         } else {
             map.put("auto_bootstrap", false);
         }
-        
+
         map.put("saved_caches_directory", config.getCacheLocation());
         map.put("commitlog_directory", config.getCommitLogLocation());
         map.put("data_file_directories", Lists.newArrayList(config.getDataFileLocation()));
         boolean enableIncremental = (config.getBackupHour() >= 0 && config.isIncrBackup()) && (CollectionUtils.isEmpty(config.getBackupRacs()) || config.getBackupRacs().contains(config.getRac()));
         map.put("incremental_backups", enableIncremental);
         map.put("endpoint_snitch", getSnitch());
-        map.put("in_memory_compaction_limit_in_mb", config.getInMemoryCompactionLimit());
+        map.put("memtable_heap_space_in_mb", config.getMemtableHeapSpaceMB());
+        map.put("memtable_offheap_space_in_mb", config.getMemtableOffHeapSpaceMB());
+        map.put("memtable_cleanup_threshold", config.getMemtableCleanupThreshold());
+        map.put("memtable_allocation_type", config.getMemtableAllocationType());
         map.put("compaction_throughput_mb_per_sec", config.getCompactionThroughput());
         map.put("partitioner", derivePartitioner(map.get("partitioner").toString(), config.getPartitioner()));
 
-        map.put("memtable_total_space_in_mb", config.getMemtableTotalSpaceMB());
         map.put("stream_throughput_outbound_megabits_per_sec", config.getStreamingThroughputMB());
-        map.put("multithreaded_compaction", config.getMultithreadedCompaction());
 
         map.put("max_hint_window_in_ms", config.getMaxHintWindowInMS());
         map.put("hinted_handoff_throttle_in_kb", config.getHintedHandoffThrottleKb());
@@ -82,10 +81,10 @@ public class StandardTuner implements CassandraTuner
         map.put("concurrent_reads", config.getConcurrentReadsCnt());
         map.put("concurrent_writes", config.getConcurrentWritesCnt());
         map.put("concurrent_compactors", config.getConcurrentCompactorsCnt());
-        
+
         map.put("rpc_server_type", config.getRpcServerType());
         map.put("index_interval", config.getIndexInterval());
-        
+
         List<?> seedp = (List) map.get("seed_provider");
         Map<String, String> m = (Map<String, String>) seedp.get(0);
         m.put("class_name", seedProvider);
@@ -94,8 +93,8 @@ public class StandardTuner implements CassandraTuner
         configureGlobalCaches(config, map);
         //force to 1 until vnodes are properly supported
 	    map.put("num_tokens", 1);
-	    
-	    
+
+
 	    addExtraCassParams(map);
 
         logger.info(yaml.dump(map));
@@ -232,18 +231,18 @@ public class StandardTuner implements CassandraTuner
         logger.info("Updating yaml" + yaml.dump(map));
         yaml.dump(map, new FileWriter(yamlFile));
     }
-    
-    public void addExtraCassParams(Map map) 
+
+    public void addExtraCassParams(Map map)
     {
     	String params = config.getExtraConfigParams();
     	if (params == null) {
     		logger.info("Updating yaml: no extra cass params");
     		return;
     	}
-    	
+
     	String[] pairs = params.split(",");
     	logger.info("Updating yaml: adding extra cass params");
-    	for(int i=0; i<pairs.length; i++) 
+    	for(int i=0; i<pairs.length; i++)
     	{
     		String[] pair = pairs[i].split("=");
     		String priamKey = pair[0];
