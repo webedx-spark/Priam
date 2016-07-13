@@ -15,7 +15,9 @@
  */
 package com.netflix.priam.defaultimpl;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
@@ -29,6 +31,8 @@ import com.netflix.priam.IConfigSource;
 import com.netflix.priam.IConfiguration;
 import com.netflix.priam.ICredential;
 import com.netflix.priam.utils.AsgNameParser;
+import com.netflix.priam.identity.InstanceEnvIdentity;
+import com.netflix.priam.identity.config.InstanceDataRetriever;
 import com.netflix.priam.utils.RetryableCallable;
 import com.netflix.priam.utils.SystemUtils;
 
@@ -80,11 +84,19 @@ public class PriamConfiguration implements IConfiguration
     private static final String CONFIG_TARGET_KEYSPACE_NAME = PRIAM_PRE + ".target.keyspace";
     private static final String CONFIG_TARGET_COLUMN_FAMILY_NAME = PRIAM_PRE + ".target.columnfamily";
     private static final String CONFIG_CASS_MANUAL_START_ENABLE = PRIAM_PRE + ".cass.manual.start.enable";
+    private static final String CONFIG_CREATE_NEW_TOKEN_ENABLE = PRIAM_PRE + ".create.new.token.enable";
 
     // Backup and Restore
     private static final String CONFIG_BACKUP_THREADS = PRIAM_PRE + ".backup.threads";
     private static final String CONFIG_RESTORE_PREFIX = PRIAM_PRE + ".restore.prefix";
     private static final String CONFIG_INCR_BK_ENABLE = PRIAM_PRE + ".backup.incremental.enable";
+    private static final String CONFIG_SNAPSHOT_KEYSPACE_FILTER = PRIAM_PRE + ".snapshot.keyspace.filter";
+    private static final String CONFIG_SNAPSHOT_CF_FILTER = PRIAM_PRE + ".snapshot.cf.filter";
+    private static final String CONFIG_INCREMENTAL_KEYSPACE_FILTER = PRIAM_PRE + ".incremental.keyspace.filter";
+    private static final String CONFIG_INCREMENTAL_CF_FILTER = PRIAM_PRE + ".incremental.cf.filter";
+    private static final String CONFIG_RESTORE_KEYSPACE_FILTER = PRIAM_PRE + ".restore.keyspace.filter";
+    private static final String CONFIG_RESTORE_CF_FILTER = PRIAM_PRE + ".restore.cf.filter";
+
     private static final String CONFIG_CL_BK_ENABLE = PRIAM_PRE + ".backup.commitlog.enable";
     private static final String CONFIG_AUTO_RESTORE_SNAPSHOTNAME = PRIAM_PRE + ".restore.snapshot";
     private static final String CONFIG_BUCKET_NAME = PRIAM_PRE + ".s3.bucket";
@@ -126,12 +138,29 @@ public class PriamConfiguration implements IConfiguration
     private static final String CONFIG_INDEX_INTERVAL = PRIAM_PRE + ".index.interval";
     private static final String CONFIG_EXTRA_PARAMS = PRIAM_PRE + ".extra.params";
     private static final String CONFIG_AUTO_BOOTSTRAP = PRIAM_PRE + ".auto.bootstrap";
+    private static final String CONFIG_DSE_CLUSTER_TYPE = PRIAM_PRE + ".dse.cluster.type";
+    private static final String CONFIG_DEFAULT_DSE_LOC = PRIAM_PRE + ".dse.default.location";
+    private static final String CONFIG_EXTRA_ENV_PARAMS = PRIAM_PRE + ".extra.env.params";
 
     private static final String CONFIG_US_EAST_1_S3_ENDPOINT = PRIAM_PRE + ".useast1.s3url";
     private static final String CONFIG_US_WEST_1_S3_ENDPOINT = PRIAM_PRE + ".uswest1.s3url";
     private static final String CONFIG_US_WEST_2_S3_ENDPOINT = PRIAM_PRE + ".uswest2.s3url";
     private static final String CONFIG_EU_WEST_1_S3_ENDPOINT = PRIAM_PRE + ".euwest1.s3url";
     private static final String CONFIG_SA_EAST_1_S3_ENDPOINT = PRIAM_PRE + ".saeast1.s3url";
+
+
+    private static final String CONFIG_RESTORE_SOURCE_TYPE = PRIAM_PRE + ".restore.source.type"; //the type of source for the restore.  Valid values are: AWSCROSSACCT or GOOGLE.
+    private static final String CONFIG_ENCRYPTED_BACKUP_ENABLED = PRIAM_PRE + ".encrypted.backup.enabled"; //enable encryption of backup (snapshots, incrementals, commit logs).
+
+    //Backup and restore cryptography
+    private static final String CONFIG_PRIKEY_LOC = PRIAM_PRE + ".private.key.location"; //the location on disk of the private key used by the cryptography algorithm
+    private static final String CONFIG_PGP_PASSWORD_PHRASE = PRIAM_PRE + ".pgp.password.phrase"; //pass phrase used by the cryptography algorithm
+    private static final String CONFIG_PGP_PUB_KEY_LOC = PRIAM_PRE + ".pgp.pubkey.file.location";
+
+    //Restore from Google Cloud Storage
+    private static final String CONFIG_GCS_SERVICE_ACCT_ID = PRIAM_PRE + ".gcs.service.acct.id"; //Google Cloud Storage service account id
+    private static final String CONFIG_GCS_SERVICE_ACCT_PRIVATE_KEY_LOC = PRIAM_PRE + ".gcs.service.acct.private.key"; //the absolute path on disk for the Google Cloud Storage PFX file (i.e. the combined format of the private key and certificate).
+
 
     private static String US_EAST_1_REGION = "us-east-1";
     private static String US_WEST_1_REGION = "us-west-1";
@@ -144,18 +173,24 @@ public class PriamConfiguration implements IConfiguration
     private static final String CONFIG_REGION_NAME = PRIAM_PRE + ".az.region";
     private static final String CONFIG_DC_SUFFIX = PRIAM_PRE + ".az.dcSuffix";
     private static final String CONFIG_ACL_GROUP_NAME = PRIAM_PRE + ".acl.groupname";
-    private final String RAC = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/placement/availability-zone");
-    private final String PUBLIC_HOSTNAME;
-    private final String PUBLIC_IP;
     private final String LOCAL_HOSTNAME = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/local-hostname").trim();
     private final String LOCAL_IP = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/local-ipv4").trim();
-    private final String INSTANCE_ID = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/instance-id").trim();
-    private final String INSTANCE_TYPE = SystemUtils.getDataFromUrl("http://169.254.169.254/latest/meta-data/instance-type").trim();
     private static String ASG_NAME = System.getenv("ASG_NAME");
     private static String REGION = System.getenv("EC2_REGION");
     private static String DC_SUFFIX;
     private static final String CONFIG_VPC_RING = PRIAM_PRE + ".vpc";
+    private static final String CONFIG_ROLE_ASSUMPTION_ARN = PRIAM_PRE + ".roleassumption.arn"; //Restore from AWS.  This is applicable when restoring from an AWS account which requires cross account assumption.
 
+    //Running instance meta data
+    private String RAC;
+    private String PUBLIC_HOSTNAME;
+    private String PUBLIC_IP;
+    private String INSTANCE_TYPE;
+    private String INSTANCE_ID;
+    private String NETWORK_MAC;  //Fetch metadata of the running instance's network interface
+
+    //== vpc specific
+    private String NETWORK_VPC;  //Fetch the vpc id of running instance
 
     // Defaults
     private final String DEFAULT_CLUSTER_NAME = "cass_cluster";
@@ -213,8 +248,10 @@ public class PriamConfiguration implements IConfiguration
     private static final Logger logger = LoggerFactory.getLogger(PriamConfiguration.class);
     private final ICredential provider;
 
+	private InstanceEnvIdentity insEnvIdentity;
+
     @Inject
-    public PriamConfiguration(ICredential provider, IConfigSource config)
+    public PriamConfiguration(ICredential provider, IConfigSource config, InstanceEnvIdentity insEnvIdentity)
     {
         // public interface meta-data does not exist when Priam runs in AWS VPC (priam.vpc=true)
         String p_hostname="";
@@ -235,11 +272,29 @@ public class PriamConfiguration implements IConfiguration
         this.PUBLIC_IP = p_ip;
         this.provider = provider;
         this.config = config;
+        this.insEnvIdentity = insEnvIdentity;
     }
 
     @Override
     public void intialize()
     {
+        InstanceDataRetriever instanceDataRetriever;
+        try {
+            instanceDataRetriever = getInstanceDataRetriever();
+        } catch (Exception e) {
+            throw new IllegalStateException("Exception when instantiating the instance data retriever.  Msg: " + e.getLocalizedMessage());
+        }
+
+        RAC = instanceDataRetriever.getRac();
+        PUBLIC_HOSTNAME = instanceDataRetriever.getPublicHostname();
+        PUBLIC_IP = instanceDataRetriever.getPublicIP();
+
+        INSTANCE_ID = instanceDataRetriever.getInstanceId();
+        INSTANCE_TYPE = instanceDataRetriever.getInstanceType();
+
+        NETWORK_MAC =  instanceDataRetriever.getMac();
+        NETWORK_VPC = instanceDataRetriever.getVpcId();
+
         setupEnvVars();
         this.config.intialize(ASG_NAME, REGION);
         setDefaultRACList(REGION);
@@ -248,6 +303,18 @@ public class PriamConfiguration implements IConfiguration
         SystemUtils.createDirs(getCommitLogLocation());
         SystemUtils.createDirs(getCacheLocation());
         SystemUtils.createDirs(getDataFileLocation());
+    }
+
+    private InstanceDataRetriever getInstanceDataRetriever() throws InstantiationException, IllegalAccessException, ClassNotFoundException
+    {
+    	if (this.insEnvIdentity.isClassic()) {
+    		return (InstanceDataRetriever)Class.forName("com.netflix.priam.identity.config.AwsClassicInstanceDataRetriever").newInstance();
+
+    	} else if (this.insEnvIdentity.isNonDefaultVpc()) {
+    		return (InstanceDataRetriever)Class.forName("com.netflix.priam.identity.config.AWSVpcInstanceDataRetriever").newInstance();
+    	} else {
+    		throw new IllegalStateException("Unable to determine environemt (vpc, classic) for running instance.");
+    	}
     }
 
     private void setupEnvVars()
@@ -521,6 +588,36 @@ public class PriamConfiguration implements IConfiguration
     public int getBackupHour()
     {
         return config.get(CONFIG_BACKUP_HOUR, DEFAULT_BACKUP_HOUR);
+    }
+
+    @Override
+    public String getSnapshotKeyspaceFilters() {
+    	return config.get(CONFIG_SNAPSHOT_KEYSPACE_FILTER);
+    }
+
+    @Override
+    public String getSnapshotCFFilter() throws IllegalArgumentException{
+    	return config.get(CONFIG_SNAPSHOT_CF_FILTER);
+    }
+
+    @Override
+    public String getIncrementalKeyspaceFilters() {
+    	return config.get(CONFIG_INCREMENTAL_KEYSPACE_FILTER);
+    }
+
+    @Override
+    public String getIncrementalCFFilter() {
+    	return config.get(CONFIG_INCREMENTAL_CF_FILTER);
+    }
+
+    @Override
+    public String getRestoreKeyspaceFilter() {
+    	return config.get(CONFIG_RESTORE_KEYSPACE_FILTER);
+    }
+
+    @Override
+    public String getRestoreCFFilter() {
+    	return config.get(CONFIG_RESTORE_CF_FILTER);
     }
 
     @Override
@@ -909,6 +1006,32 @@ public class PriamConfiguration implements IConfiguration
     	return config.get(CONFIG_EXTRA_PARAMS);
     }
 
+    public Map<String, String> getExtraEnvParams() {
+
+        String envParams = config.get(CONFIG_EXTRA_ENV_PARAMS);
+        if (envParams == null) {
+            logger.info("getExtraEnvParams: No extra env params");
+            return null;
+        }
+        Map<String, String> extraEnvParamsMap = new HashMap<String, String>();
+        String[] pairs = envParams.split(",");
+        logger.info("getExtraEnvParams: Extra cass params. From config :" +envParams);
+            for (int i = 0; i < pairs.length; i++) {
+                String[] pair = pairs[i].split("=");
+                if (pair.length > 1) {
+                    String priamKey = pair[0];
+                    String cassKey = pair[1];
+                    String cassVal = config.get(priamKey);
+                    logger.info("getExtraEnvParams: Start-up/ env params: Priamkey[" + priamKey + "], CassStartupKey[" + cassKey + "], Val[" + cassVal + "]");
+                    if(!StringUtils.isBlank(cassKey) && !StringUtils.isBlank(cassVal)) {
+                        extraEnvParamsMap.put(cassKey, cassVal);
+                    }
+                }
+            }
+        return extraEnvParamsMap;
+
+    }
+
     public String getCassYamlVal(String priamKey) {
     	return config.get(priamKey);
     }
@@ -927,4 +1050,86 @@ public class PriamConfiguration implements IConfiguration
     {
         return ImmutableSet.copyOf(config.get("coursera.solr.dcs", "").split(","));
     }
+
+    //values are cassandra, solr, hadoop, spark or hadoop-spark
+    public String getDseClusterType() {
+        return config.get(CONFIG_DSE_CLUSTER_TYPE + "." + ASG_NAME, "cassandra");
+    }
+
+    @Override
+    public String getDefaultDseLocation()
+    {
+        return config.get(CONFIG_DEFAULT_DSE_LOC, "/etc/default/dse");
+    }
+
+    @Override
+    public boolean isCreateNewTokenEnable()
+    {
+        return config.get(CONFIG_CREATE_NEW_TOKEN_ENABLE, true);
+    }
+
+
+	@Override
+	public String getPrivateKeyLocation() {
+		return config.get(CONFIG_PRIKEY_LOC);
+	}
+
+	@Override
+	public String getRestoreSourceType() {
+		return config.get(CONFIG_RESTORE_SOURCE_TYPE);
+	}
+
+	@Override
+	public boolean isEncryptBackupEnabled() {
+		return config.get(CONFIG_ENCRYPTED_BACKUP_ENABLED, false);
+	}
+
+	@Override
+	public String getAWSRoleAssumptionArn() {
+		return config.get(CONFIG_ROLE_ASSUMPTION_ARN);
+	}
+
+	@Override
+	public String getGcsServiceAccountId() {
+		return config.get(CONFIG_GCS_SERVICE_ACCT_ID);
+	}
+
+	@Override
+	public String getGcsServiceAccountPrivateKeyLoc() {
+		return config.get(CONFIG_GCS_SERVICE_ACCT_PRIVATE_KEY_LOC, "/apps/tomcat/conf/gcsentryptedkey.p12");
+	}
+
+	@Override
+	public String getPgpPasswordPhrase() {
+		return config.get(CONFIG_PGP_PASSWORD_PHRASE);
+	}
+
+	@Override
+	public String getPgpPublicKeyLoc() {
+		return config.get(CONFIG_PGP_PUB_KEY_LOC);
+	}
+
+	@Override
+    /*
+     * @return the vpc id of the running instance.
+     */
+	public String getVpcId() {
+		return NETWORK_VPC;
+	}
+
+	@Override
+	public Boolean isIncrBackupParallelEnabled() {
+		return config.get(PRIAM_PRE  + ".incremental.bkup.parallel", false);
+	}
+
+	@Override
+	public int getIncrementalBkupMaxConsumers() {
+		return config.get(PRIAM_PRE  + ".incremental.bkup.max.consumers", 4);
+	}
+
+	@Override
+	public int getUncrementalBkupQueueSize() {
+		return config.get(PRIAM_PRE  + ".incremental.bkup.queue.size", 100000);
+	}
+
 }

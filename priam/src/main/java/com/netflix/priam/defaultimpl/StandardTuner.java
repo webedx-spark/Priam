@@ -1,13 +1,16 @@
 package com.netflix.priam.defaultimpl;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
 import com.google.common.collect.Lists;
+import com.google.common.io.Files;
 import com.google.inject.Inject;
 
+import com.netflix.priam.dse.IDseConfiguration;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.IOUtils;
@@ -57,20 +60,27 @@ public class StandardTuner implements CassandraTuner
         } else {
             map.put("auto_bootstrap", false);
         }
-        
+
         map.put("saved_caches_directory", config.getCacheLocation());
         map.put("commitlog_directory", config.getCommitLogLocation());
         map.put("data_file_directories", Lists.newArrayList(config.getDataFileLocation()));
         boolean enableIncremental = (config.getBackupHour() >= 0 && config.isIncrBackup()) && (CollectionUtils.isEmpty(config.getBackupRacs()) || config.getBackupRacs().contains(config.getRac()));
         map.put("incremental_backups", enableIncremental);
-        map.put("endpoint_snitch", getSnitch());
-        map.put("in_memory_compaction_limit_in_mb", config.getInMemoryCompactionLimit());
+        map.put("endpoint_snitch", config.getSnitch());
+        if (map.containsKey("in_memory_compaction_limit_in_mb")) {
+        	map.remove("in_memory_compaction_limit_in_mb");
+        }
         map.put("compaction_throughput_mb_per_sec", config.getCompactionThroughput());
         map.put("partitioner", derivePartitioner(map.get("partitioner").toString(), config.getPartitioner()));
 
-        map.put("memtable_total_space_in_mb", config.getMemtableTotalSpaceMB());
+        if (map.containsKey("memtable_total_space_in_mb")) {
+        	map.remove("memtable_total_space_in_mb");
+        }
+
         map.put("stream_throughput_outbound_megabits_per_sec", config.getStreamingThroughputMB());
-        map.put("multithreaded_compaction", config.getMultithreadedCompaction());
+        if (map.containsKey("multithreaded_compaction")) {
+        	map.remove("multithreaded_compaction");
+        }
 
         map.put("max_hint_window_in_ms", config.getMaxHintWindowInMS());
         map.put("hinted_handoff_throttle_in_kb", config.getHintedHandoffThrottleKb());
@@ -82,10 +92,10 @@ public class StandardTuner implements CassandraTuner
         map.put("concurrent_reads", config.getConcurrentReadsCnt());
         map.put("concurrent_writes", config.getConcurrentWritesCnt());
         map.put("concurrent_compactors", config.getConcurrentCompactorsCnt());
-        
+
         map.put("rpc_server_type", config.getRpcServerType());
-        map.put("index_interval", config.getIndexInterval());
-        
+        //map.put("index_interval", config.getIndexInterval());
+
         List<?> seedp = (List) map.get("seed_provider");
         Map<String, String> m = (Map<String, String>) seedp.get(0);
         m.put("class_name", seedProvider);
@@ -94,9 +104,13 @@ public class StandardTuner implements CassandraTuner
         configureGlobalCaches(config, map);
         //force to 1 until vnodes are properly supported
 	    map.put("num_tokens", 1);
-	    
-	    
+
+
 	    addExtraCassParams(map);
+
+	    //remove troublesome properties
+	    map.remove("flush_largest_memtables_at");
+	    map.remove("reduce_cache_capacity_to");
 
         logger.info(yaml.dump(map));
         yaml.dump(map, new FileWriter(yamlFile));
@@ -104,6 +118,7 @@ public class StandardTuner implements CassandraTuner
         configureCommitLogBackups();
 
         writeCassandraSnitchProperties();
+        writeDseDefault();
     }
 
     private void writeCassandraSnitchProperties()
@@ -137,6 +152,44 @@ public class StandardTuner implements CassandraTuner
             FileUtils.closeQuietly(reader);
         }
     }
+
+    private void writeDseDefault()
+    {
+        boolean isSolr = false;
+        if (config.getDCSuffix().startsWith("_solr") || config.getSolrDCs().contains(config.getDC())) {
+            isSolr = true;
+        }
+
+        if (!isSolr) {
+            return;
+        }
+
+        String filePath = config.getDefaultDseLocation();
+        boolean replaced = false;
+        try
+        {
+            List<String> lines = Files.readLines(new File(filePath), StandardCharsets.UTF_8);
+            StringBuilder result = new StringBuilder();
+
+            for (String line : lines) {
+                if (line.trim().equals("SOLR_ENABLED=0"))
+                {
+                    result.append("SOLR_ENABLED=1\n");
+                } else
+                {
+                    result.append(line).append("\n");
+                }
+            }
+
+            Files.write(result.toString(), new File(filePath), StandardCharsets.UTF_8);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Unable to read " + filePath, e);
+        }
+
+    }
+
 
     /**
      * Overridable by derived classes to inject a wrapper snitch.
@@ -232,18 +285,18 @@ public class StandardTuner implements CassandraTuner
         logger.info("Updating yaml" + yaml.dump(map));
         yaml.dump(map, new FileWriter(yamlFile));
     }
-    
-    public void addExtraCassParams(Map map) 
+
+    public void addExtraCassParams(Map map)
     {
     	String params = config.getExtraConfigParams();
     	if (params == null) {
     		logger.info("Updating yaml: no extra cass params");
     		return;
     	}
-    	
+
     	String[] pairs = params.split(",");
     	logger.info("Updating yaml: adding extra cass params");
-    	for(int i=0; i<pairs.length; i++) 
+    	for(int i=0; i<pairs.length; i++)
     	{
     		String[] pair = pairs[i].split("=");
     		String priamKey = pair[0];

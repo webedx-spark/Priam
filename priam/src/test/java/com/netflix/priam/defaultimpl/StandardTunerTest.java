@@ -77,9 +77,11 @@ public class StandardTunerTest
     {
         String target = "/tmp/priam_test.yaml";
         String rackPropertiesPath = config.getRackDcPropertiesLocation();
+        String defaultDsePath = config.getDefaultDseLocation();
 
         Files.copy(new File("src/main/resources/incr-restore-cassandra.yaml"), new File("/tmp/priam_test.yaml"));
         Files.copy(new File("src/test/resources/cassandra-rackdc.properties"), new File(rackPropertiesPath));
+        Files.copy(new File("src/test/resources/default_dse"), new File(defaultDsePath));
 
         tuner.writeAllProperties(target, "your_host", "YourSeedProvider");
     }

@@ -33,8 +33,6 @@ public class DiscoveryTask extends Task implements ConnectionStateListener
     private final CuratorFramework curatorFramework;
     private String zkList;
 
-    private final CassandraMonitor cassandraMonitor;
-
     private final String serviceName;
     private final int port;
     private final AtomicBoolean shouldAdvertise = new AtomicBoolean(true);
@@ -43,11 +41,9 @@ public class DiscoveryTask extends Task implements ConnectionStateListener
     private AtomicBoolean isAdvertising = new AtomicBoolean(false);
 
     @Inject
-    public DiscoveryTask(IConfiguration config, CassandraMonitor cassandraMonitor)
+    public DiscoveryTask(IConfiguration config)
     {
         super(config);
-
-        this.cassandraMonitor = cassandraMonitor;
 
         serviceName = config.getAppName() + config.getDCSuffix();
 
@@ -190,7 +186,7 @@ public class DiscoveryTask extends Task implements ConnectionStateListener
         try
         {
             JMXNodeTool tool = JMXNodeTool.instance(config);
-            return tool.getOperationalMode().equals("NORMAL");
+            return tool.getOperationMode().equals("NORMAL");
         }
         catch (Exception e)
         {

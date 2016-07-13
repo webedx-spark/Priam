@@ -21,11 +21,6 @@ import java.math.BigInteger;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
-
-import javax.ws.rs.*;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
-
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,10 +28,14 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
@@ -54,15 +53,23 @@ import com.google.inject.name.Named;
 import com.netflix.priam.ICassandraProcess;
 import com.netflix.priam.IConfiguration;
 import com.netflix.priam.PriamServer;
-import com.netflix.priam.backup.*;
+import com.netflix.priam.backup.AbstractBackupPath;
 import com.netflix.priam.backup.AbstractBackupPath.BackupFileType;
+import com.netflix.priam.backup.BackupStatusMgr;
+import com.netflix.priam.backup.BackupStatusMgr.BackupMetadata;
+import com.netflix.priam.backup.IBackupFileSystem;
+import com.netflix.priam.backup.IIncrementalBackup;
+import com.netflix.priam.backup.IMessageObserver;
+import com.netflix.priam.backup.IncrementalBackup;
+import com.netflix.priam.backup.MetaData;
+import com.netflix.priam.backup.Restore;
+import com.netflix.priam.backup.SnapshotBackup;
 import com.netflix.priam.identity.IPriamInstanceFactory;
 import com.netflix.priam.identity.PriamInstance;
 import com.netflix.priam.scheduler.PriamScheduler;
 import com.netflix.priam.utils.CassandraMonitor;
 import com.netflix.priam.utils.CassandraTuner;
 import com.netflix.priam.utils.ITokenManager;
-
 import com.netflix.priam.utils.SystemUtils;
 
 @Path("/v1/backup")
@@ -102,10 +109,13 @@ public class BackupServlet
     @Inject
     private MetaData metaData;
 
+	private BackupStatusMgr completedBkups;
+
     @Inject
 
     public BackupServlet(PriamServer priamServer, IConfiguration config, @Named("backup")IBackupFileSystem backupFs,@Named("backup_status")IBackupFileSystem bkpStatusFs, Restore restoreObj, Provider<AbstractBackupPath> pathProvider, CassandraTuner tuner,
-            SnapshotBackup snapshotBackup, IPriamInstanceFactory factory, ITokenManager tokenManager, ICassandraProcess cassProcess)
+            SnapshotBackup snapshotBackup, IPriamInstanceFactory factory, ITokenManager tokenManager, ICassandraProcess cassProcess
+    		,BackupStatusMgr completedBkups)
 
     {
         this.priamServer = priamServer;
@@ -119,6 +129,7 @@ public class BackupServlet
         this.factory = factory;
         this.tokenManager = tokenManager;
         this.cassProcess = cassProcess;
+        this.completedBkups = completedBkups;
     }
 
     @GET
@@ -137,57 +148,16 @@ public class BackupServlet
         return Response.ok(REST_SUCCESS, MediaType.APPLICATION_JSON).build();
     }
 
-    @GET
-    @Path("/restore")
-    public Response restore(@QueryParam(REST_HEADER_RANGE) String daterange, @QueryParam(REST_HEADER_DC) String dc, @QueryParam(REST_HEADER_TOKEN) String token,
-            @QueryParam(REST_KEYSPACES) String keyspaces, @QueryParam(REST_RESTORE_PREFIX) String restorePrefix) throws Exception
-    {
-        Date startTime;
-        Date endTime;
-
-        if (StringUtils.isBlank(daterange) || daterange.equalsIgnoreCase("default"))
-        {
-            startTime = new DateTime().minusDays(1).toDate();
-            endTime = new DateTime().toDate();
-        }
-        else
-        {
-            String[] restore = daterange.split(",");
-            AbstractBackupPath path = pathProvider.get();
-            startTime = path.parseDate(restore[0]);
-            endTime = path.parseDate(restore[1]);
-        }
-        
-        String origRestorePrefix = config.getRestorePrefix();
-        if (StringUtils.isNotBlank(restorePrefix))
-        {
-            config.setRestorePrefix(restorePrefix);
-        }
-        
-        logger.info("Parameters: { token: [" + token + "], dc: [" +  dc + "], startTime: [" + startTime + "], endTime: [" + endTime +
-                    "], keyspaces: [" + keyspaces + "], restorePrefix: [" + restorePrefix + "]}");
-        
-        restore(token, dc, startTime, endTime, keyspaces);
-        
-        //Since this call is probably never called in parallel, config is multi-thread safe to be edited
-        if (origRestorePrefix != null)
-                config.setRestorePrefix(origRestorePrefix);       
-        else    config.setRestorePrefix(""); 
-
-        return Response.ok(REST_SUCCESS, MediaType.APPLICATION_JSON).build();
-    }
-    
-    @GET
-    @Path("/incremental_restore")
-    public Response restoreIncrementals() throws Exception
-    {
-        scheduler.addTask(IncrementalRestore.JOBNAME, IncrementalRestore.class, IncrementalRestore.getTimer());
-        return Response.ok(REST_SUCCESS, MediaType.APPLICATION_JSON).build();
-    }
-
 
     @GET
     @Path("/list")
+    /*
+     * Fetch the list of files for the requested date range.
+     *
+     * @param date range
+     * @param filter.  The type of data files fetched.  E.g. META will only fetch the dailsy snapshot meta data file (meta.json).
+     * @return the list of files in json format as part of the Http response body.
+     */
     public Response list(@QueryParam(REST_HEADER_RANGE) String daterange, @QueryParam(REST_HEADER_FILTER) @DefaultValue("") String filter) throws Exception
     {
         Date startTime;
@@ -205,55 +175,126 @@ public class BackupServlet
             startTime = path.parseDate(restore[0]);
             endTime = path.parseDate(restore[1]);
         }
-        
+
         logger.info("Parameters: {backupPrefix: [" + config.getBackupPrefix() + "], daterange: [" + daterange + "], filter: [" + filter + "]}");
-        
+
         Iterator<AbstractBackupPath> it = bkpStatusFs.list(config.getBackupPrefix(), startTime, endTime);
         JSONObject object = new JSONObject();
         object = constructJsonResponse(object,it,filter);
         return Response.ok(object.toString(2), MediaType.APPLICATION_JSON).build();
     }
 
+
     @GET
     @Path("/status")
     public Response status() throws Exception
     {
-        int restoreTCount = restoreObj.getActiveCount();
-        logger.debug("Thread counts for backup is: %d", restoreTCount);
+        int restoreTCount = restoreObj.getActiveCount(); //Active threads performing the restore
+        logger.debug("Thread counts for restore is: %d", restoreTCount);
         int backupTCount = backupFs.getActivecount();
-        logger.debug("Thread counts for restore is: %d", backupTCount);
+        logger.debug("Thread counts for snapshot backup is: %d", backupTCount);
         JSONObject object = new JSONObject();
-        object.put("Restore", new Integer(restoreTCount));
-        object.put("Status", restoreObj.state().toString());
-        object.put("Backup", new Integer(backupTCount));
-        object.put("Status", snapshotBackup.state().toString());
+        object.put("Restore", new Integer(restoreTCount)); //Number of active threads performing the restore
+        object.put("status", restoreObj.state().toString()); //state of the restore [ERROR|RUNNING|DONE]
+        object.put("Backup", new Integer(backupTCount)); //Number of active threads performing the snapshot backups
+        object.put("Snapshotstatus", snapshotBackup.state().toString());
+        return Response.ok(object.toString(), MediaType.APPLICATION_JSON).build();
+    }
+
+    /*
+     * Determines the status of a snapshot for a date.  If there was at least one successful snpashot for the date, snapshot
+     * for the date is considered completed.
+     * @param date date of the snapshot.  Format of date is yyyymmdd
+     * @return {"Snapshotstatus":false} or {"Snapshotstatus":true}
+     */
+    @GET
+    @Path("/status/{date}")
+    public Response statusByDate(@PathParam("date") String date) throws Exception {
+    	String key = BackupStatusMgr.formatKey(IMessageObserver.BACKUP_MESSAGE_TYPE.SNAPSHOT, date);
+    	Boolean success = this.completedBkups.status(key);
+        JSONObject object = new JSONObject();
+        StringBuffer strBuffer = new StringBuffer();
+        strBuffer.append(success);
+
+    	BackupMetadata bkupMetadata = this.completedBkups.locate(key);
+    	if (bkupMetadata != null ) { //backup exist base on requested date, lets fetch more of its metadata
+            strBuffer.append(',');
+            String token = bkupMetadata.getToken();
+            if (token != null && !token.isEmpty() ) {
+                strBuffer.append("token=" + bkupMetadata.getToken());
+            } else {
+                strBuffer.append("token=not available");
+            }
+            strBuffer.append(',');
+            if (bkupMetadata.getStartTime() != null) {
+                strBuffer.append("starttime=" + SystemUtils.formatDate(bkupMetadata.getStartTime(), "yyyyMMddHHmm"));
+            } else {
+                strBuffer.append("starttime=not available");
+            }
+
+            Date completeTime = bkupMetadata.getCompletedTime();
+            strBuffer.append(',');
+            if (bkupMetadata.getCompletedTime() != null ) {
+                strBuffer.append("completetime=" + SystemUtils.formatDate(bkupMetadata.getCompletedTime(), "yyyyMMddHHmm"));
+            } else {
+            	strBuffer.append("completetime=not_available");
+            }
+
+    	} else {
+    		String token = SystemUtils.getDataFromUrl("http://localhost:8080/Priam/REST/v1/cassconfig/get_token");
+            if (token != null && !token.isEmpty() ) {
+            	strBuffer.append(',');
+                strBuffer.append("token=" + token);
+            } else {
+            	strBuffer.append(',');
+                strBuffer.append("token=not available");
+            }
+    	}
+
+        object.put("Snapshotstatus", strBuffer.toString());
+        return Response.ok(object.toString(), MediaType.APPLICATION_JSON).build();
+    }
+
+    /*
+     * Determines the status of a snapshot for a date.  If there was at least one successful snpashot for the date, snapshot
+     * for the date is considered completed.
+     * @param date date of the snapshot.  Format of date is yyyymmdd
+     * @return {"Snapshots":["201606060450","201606060504"]} or "Snapshots":[]}
+     */
+    @GET
+    @Path("/status/{date}/snapshots")
+    public Response snapshotsByDate(@PathParam("date") String date) throws Exception {
+    	List<String> snapshots = this.completedBkups.getBackups(BackupStatusMgr.formatKey(IMessageObserver.BACKUP_MESSAGE_TYPE.SNAPSHOT, date));
+        JSONObject object = new JSONObject();
+        object.put("Snapshots", snapshots);
+
         return Response.ok(object.toString(), MediaType.APPLICATION_JSON).build();
     }
 
     /**
      * <p>
      * Life_Of_C*Row : With this REST call, mutations/existence of a rowkey can be found.
-     * It uses SSTable2Json utility which will convert SSTables on disk to JSON format and 
+     * It uses SSTable2Json utility which will convert SSTables on disk to JSON format and
      * Search for the desired rowkey.
-     * 
+     *
      * Steps include:
      * 1. Restoring data for given data range and other params
      * 2. Searching provided rowkey in SSTables and writing search result to JSON
      * 3. Delete all the files under Keyspace Directory.
      *    Deletion is done for efficient space usage, so that same node can be reused for
-     *    subsequent runs. 
+     *    subsequent runs.
      * <p>
-     * 
+     *
      * @param Similar to Restore call and few additional params.
-     *        
+     *
      *      daterange 		: Can not be Null or Default. Comma separated Start & End date eg. 201311250000,201311260000
      *      rowkey    		: rowkey to search (In Hex format)
      *      ks        		: keyspace of mentioned rowkey
      *      cf        		: column family of mentioned rowkey
-     *      fileExtension 	: Part of SSTable Data file names 
+     *      fileExtension 	: Part of SSTable Data file names
      *      					  eg. if file name = KS1-CF1-hf-100-Data.db
      *      						  then fileExtension = KS1-CF1-hf
-     * 
+     *
      * @return Creates JSON file based on the passed date at hardcoded dir location : /tmp/priam_sstables
      * 		   If rowkey is not found in the SSTable, JSON file will be empty.
      */
@@ -278,24 +319,24 @@ public class BackupServlet
 
 		try
 		{
-		
+
 		if (StringUtils.isBlank(daterange)
 				|| daterange.equalsIgnoreCase("default")) {
 			return Response.ok("\n[\"daterange can't be blank or default.eg.201311250000,201311260000\"]\n", MediaType.APPLICATION_JSON)
 					.build();
 		}
-		
+
 		String[] restore = daterange.split(",");
 		AbstractBackupPath path = pathProvider.get();
 		startTime = path.parseDate(restore[0]);
-		endTime = path.parseDate(restore[1]);		
+		endTime = path.parseDate(restore[1]);
 
 		String origRestorePrefix = config.getRestorePrefix();
 		if (StringUtils.isNotBlank(restorePrefix)) {
 			config.setRestorePrefix(restorePrefix);
 		}
 
-		
+
 		restore(token, dc, startTime, endTime, keyspaces);
 
 		// Since this call is probably never called in parallel, config is
@@ -319,14 +360,14 @@ public class BackupServlet
 		finally{
 			removeAllDataFiles(ks);
 		}
-		
+
 		return Response.ok(REST_SUCCESS, MediaType.APPLICATION_JSON)
 				.build();
 	}
 
     /**
      * Restore with the specified start and end time.
-     * 
+     *
      * @param token
      *            Overrides the current token with this one, if specified
      * @param dc
@@ -348,7 +389,7 @@ public class BackupServlet
 
         if( config.isRestoreClosestToken())
             priamServer.getId().getInstance().setToken(closestToken(priamServer.getId().getInstance().getToken(), config.getDC()));
-        
+
         if (StringUtils.isNotBlank(dc))
         {
             config.setDC(dc);
@@ -399,7 +440,17 @@ public class BackupServlet
                  config.setRestoreKeySpaces(newKeyspaces);
         }
     }
-    
+
+    /*
+     * A list of files for requested filter.  Currently, the only supported filter is META, all others will be ignore.
+     * For filter of META, ONLY the daily snapshot meta file (meta.json)  are accounted for, not the incremental meta file.
+     * In addition, we do ONLY list the name of the meta data file, not the list of data files within it.
+     *
+     * @param handle to the json response
+     * @param a list of all files (data (*.db), and meta data file (*.json)) from S3 for requested dates.
+     * @param backup meta data file filter.  Currently, the only supported filter is META, all others will be ignore.
+     * @return a list of files in Json format.
+     */
     private JSONObject constructJsonResponse(JSONObject object, Iterator<AbstractBackupPath> it,String filter) throws Exception
     {
 		int fileCnt = 0;
@@ -424,17 +475,19 @@ public class BackupServlet
 						.getInstance().getInstanceId());
 				backupJSON.put("uploaded_ts",
 						new DateTime(p.getUploadedTs()).toString(FMT));
-				if ("meta".equalsIgnoreCase(filter)) {
-					List<AbstractBackupPath> allFiles = metaData.get(p);
-					long totalSize = 0;
-					for (AbstractBackupPath abp : allFiles)
-						totalSize = totalSize + abp.getSize();
-					backupJSON.put("num_files", Long.toString(allFiles.size()));
-					// keyValues.put("TOTAL-SIZE", Long.toString(totalSize)); //
-					// Add Later
+				if ("meta".equalsIgnoreCase(filter)) { //only check for existence of meta file
+					p.setFileName("meta.json"); //ignore incremental meta files, we are only interested in daily snapshot
+					if (metaData.doesExist(p)) {
+						//if here, snapshot completed.
+						fileCnt++;
+						jArray.put(backupJSON);
+						backupJSON.put("num_files", "1");
+					}
+				} else { //account for every file (data, and meta) .
+					fileCnt++;
+					jArray.put(backupJSON);
 				}
-				fileCnt++;
-				jArray.put(backupJSON);
+
 			}
 			object.put("files", jArray);
 			object.put("num_files", fileCnt);
@@ -453,21 +506,21 @@ public class BackupServlet
 			//Setting timeout to 10 Mins
 			long TIMEOUT_PERIOD = 10l;
 			String unixCmd = formulateCommandToRun( rowkey, keyspace,  cf,  fileExtension, jsonFilePath);
-			
+
 			String[] cmd = {"/bin/sh", "-c", unixCmd.toString()};
 			final Process p = Runtime
 					.getRuntime()
 					.exec(cmd);
-			
+
 			Callable<Integer> callable = new Callable<Integer>()
 			{
 				@Override
 				public Integer call() throws Exception {
 					int returnCode = p.waitFor();
 					return returnCode;
-				}				
+				}
 			};
-			
+
 			ExecutorService exeService = Executors.newSingleThreadExecutor();
 			try{
 				Future<Integer> future = exeService.submit(callable);
@@ -484,12 +537,12 @@ public class BackupServlet
 				p.destroy();
 				exeService.shutdown();
 			}
-			
+
 		} catch (IOException e) {
 			logger.error(ExceptionUtils.getFullStackTrace(e));
-		}		
+		}
 	}
-	
+
 	public String formulateCommandToRun(String rowkey,String keyspace, String cf, String fileExtension, String jsonFilePath)
 	{
 		StringBuffer sbuff = new StringBuffer();
@@ -501,14 +554,14 @@ public class BackupServlet
 		sbuff.append(" >> ");
 		sbuff.append(SSTABLE2JSON_DIR_LOCATION+File.separator+jsonFilePath);
 		sbuff.append(" ; done");
-		
+
 		logger.info("SSTable2JSON location <"+SSTABLE2JSON_DIR_LOCATION+File.separator+jsonFilePath+">");
 		logger.info("Running Command = "+sbuff.toString());
 		return sbuff.toString();
 	}
-	
+
 	public void removeAllDataFiles(String ks) throws Exception
-	{		
+	{
 		String cleanupDirPath = config.getDataFileLocation()+File.separator+ks;
 		logger.info("Starting to clean all the files inside <"+cleanupDirPath+">");
 		SystemUtils.cleanupDir(cleanupDirPath, null);
