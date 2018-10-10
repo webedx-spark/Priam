@@ -52,8 +52,9 @@ public class DeadTokenRetriever extends TokenRetrieverBase implements IDeadToken
         for (PriamInstance dead : allIds)
         {
             // test same zone and is it is alive.
-            if (!dead.getRac().equals(config.getRac()) || asgInstances.contains(dead.getInstanceId()) || super.isInstanceDummy(dead))
+            if (!dead.getRac().equals(config.getRac()) || !dead.getDC().equals(config.getDC()) || asgInstances.contains(dead.getInstanceId()) || super.isInstanceDummy(dead))
                 continue;
+            logger.info("Dead DC: " + dead.getDC() + ", Config DC: " + config.getDC());
             logger.info("Found dead instances: " + dead.getInstanceId());
             PriamInstance markAsDead = factory.create(dead.getApp() + "-dead", dead.getId(), dead.getInstanceId(), dead.getHostName(), dead.getHostIP(), dead.getRac(), dead.getVolumes(),
                     dead.getToken());
